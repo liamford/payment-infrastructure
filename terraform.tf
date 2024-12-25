@@ -1,10 +1,14 @@
 terraform {
 
-  # cloud {
-  #   workspaces {
-  #     name = "learn-terraform-eks"
-  #   }
-  # }
+  backend "remote" {
+    hostname     = "app.terraform.io"
+    organization = "liam_org"
+
+    workspaces {
+      name = "payment-infrastructure"
+    }
+  }
+
 
   required_providers {
     aws = {
