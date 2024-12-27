@@ -20,25 +20,30 @@ locals {
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "5.8.1"
-
   name = "payments-vpc"
-
-  cidr = "10.0.0.0/16"
   azs  = slice(data.aws_availability_zones.available.names, 0, 3)
-
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnets  = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+  cidr            = var.vpc_cidr
+  private_subnets = var.private_subnets
+  public_subnets  = var.public_subnets
 
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
+  enable_dns_support   = true
+  one_nat_gateway_per_az = false
+
+  tags = {
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
+  }
 
   public_subnet_tags = {
-    "kubernetes.io/role/elb" = 1
+    "kubernetes.io/role/elb"                      = 1
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
   }
 
   private_subnet_tags = {
-    "kubernetes.io/role/internal-elb" = 1
+    "kubernetes.io/role/internal-elb"             = 1
+    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
   }
 }
 
@@ -112,73 +117,16 @@ resource "kubernetes_namespace" "frontdoor-ns" {
   }
 }
 
-resource "aws_iam_policy" "s3_read_policy" {
-  name        = "S3ReadPolicy"
-  description = "Policy to allow read access to S3"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action   = ["s3:GetObject"],
-        Effect   = "Allow",
-        Resource = "arn:aws:s3:::your-bucket-name/*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_policy" "dynamodb_full_access_policy" {
-  name        = "DynamoDBFullAccessPolicy"
-  description = "Policy to allow full access to DynamoDB"
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action   = ["dynamodb:*"],
-        Effect   = "Allow",
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role" "eks_pod_role" {
-  name = "eks_pod_role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "eks.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "s3_read_policy_attachment" {
-  role       = aws_iam_role.eks_pod_role.name
-  policy_arn = aws_iam_policy.s3_read_policy.arn
-}
-
-resource "aws_iam_role_policy_attachment" "dynamodb_full_access_policy_attachment" {
-  role       = aws_iam_role.eks_pod_role.name
-  policy_arn = aws_iam_policy.dynamodb_full_access_policy.arn
-}
-
-
 
 resource "kubernetes_service_account" "frontdoor-service-account" {
   metadata {
     name      = "frontdoor-service-account"
     namespace = kubernetes_namespace.frontdoor-ns.metadata[0].name
     annotations = {
-      "eks.amazonaws.com/role-arn" = aws_iam_role.eks_pod_role.arn
+      "eks.amazonaws.com/role-arn" = module.irsa-ebs-csi.iam_role_arn
     }
   }
+  automount_service_account_token = true
 }
 
 
