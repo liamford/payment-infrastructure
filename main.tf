@@ -115,6 +115,8 @@ resource "kubernetes_namespace" "frontdoor-ns" {
   metadata {
     name = "frontdoor-ns"
   }
+
+  depends_on = [module.eks]
 }
 
 
@@ -133,6 +135,7 @@ resource "kubernetes_service_account" "frontdoor-service-account" {
 resource "aws_apigatewayv2_api" "main" {
   name          = "main"
   protocol_type = "HTTP"
+  depends_on = [module.eks]
 }
 
 resource "aws_apigatewayv2_stage" "prod" {
@@ -171,10 +174,12 @@ resource "aws_apigatewayv2_integration" "eks" {
   integration_uri    = module.eks.cluster_endpoint
   connection_type    = "VPC_LINK"
   connection_id      = aws_apigatewayv2_vpc_link.eks.id
+  depends_on = [aws_apigatewayv2_api.main]
 }
 
 resource "aws_apigatewayv2_route" "eks" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /api/payments/v1/submit-payment"
   target    = "integrations/${aws_apigatewayv2_integration.eks.id}"
+  depends_on = [aws_apigatewayv2_api.main]
 }
