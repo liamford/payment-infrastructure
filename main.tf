@@ -111,6 +111,20 @@ module "irsa-ebs-csi" {
   oidc_fully_qualified_subjects = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
 }
 
+data "aws_eks_cluster" "eks" {
+  name = module.eks.cluster_name
+}
+
+data "aws_eks_cluster_auth" "eks" {
+  name = module.eks.cluster_name
+}
+
+provider "kubernetes" {
+  host                   = data.aws_eks_cluster.eks.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.eks.token
+}
+
 resource "kubernetes_namespace" "frontdoor-ns" {
   metadata {
     name = "frontdoor-ns"
@@ -167,14 +181,39 @@ resource "aws_apigatewayv2_vpc_link" "eks" {
   ]
 }
 
+resource "aws_lb" "eks_alb" {
+  name               = "eks-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.vpc_link.id]
+  subnets            = module.vpc.public_subnets
+
+  enable_deletion_protection = false
+}
+
+resource "aws_lb_listener" "eks_listener" {
+  load_balancer_arn = aws_lb.eks_alb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Default response"
+      status_code  = "200"
+    }
+  }
+}
+
 resource "aws_apigatewayv2_integration" "eks" {
   api_id             = aws_apigatewayv2_api.main.id
   integration_type   = "HTTP_PROXY"
   integration_method = "ANY"
-  integration_uri    = module.eks.cluster_endpoint
+  integration_uri    = aws_lb_listener.eks_listener.arn
   connection_type    = "VPC_LINK"
   connection_id      = aws_apigatewayv2_vpc_link.eks.id
-  depends_on = [aws_apigatewayv2_api.main]
+  depends_on         = [aws_apigatewayv2_api.main]
 }
 
 resource "aws_apigatewayv2_route" "eks" {
