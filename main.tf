@@ -151,6 +151,7 @@ resource "kubernetes_service_account" "frontdoor-service-account" {
 resource "kubernetes_service" "frontdoor-service" {
   metadata {
     name = "frontdoor-service"
+    namespace = kubernetes_namespace.frontdoor-ns.metadata[0].name
     annotations = {
       "service.beta.kubernetes.io/aws-load-balancer-name" = "frontdoor-service"
       "service.beta.kubernetes.io/aws-load-balancer-type" = "nlb"
