@@ -27,3 +27,9 @@ variable "public_subnets" {
   type        = list(string)
   default     = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
 }
+
+variable "iam_user_arn" {
+  description = "ARN of the IAM user"
+  type        = string
+  default     = "arn:aws:iam::765874878578:root"
+}

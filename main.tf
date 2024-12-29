@@ -113,10 +113,12 @@ module "irsa-ebs-csi" {
 
 data "aws_eks_cluster" "eks" {
   name = module.eks.cluster_name
+  depends_on = [module.eks]
 }
 
 data "aws_eks_cluster_auth" "eks" {
   name = module.eks.cluster_name
+  depends_on = [module.eks]
 }
 
 provider "kubernetes" {
@@ -143,82 +145,64 @@ resource "kubernetes_service_account" "frontdoor-service-account" {
     }
   }
   automount_service_account_token = true
+  depends_on = [kubernetes_namespace.frontdoor-ns]
 }
 
-
-resource "aws_apigatewayv2_api" "main" {
-  name          = "main"
-  protocol_type = "HTTP"
+resource "kubernetes_service" "frontdoor-service" {
+  metadata {
+    name = "frontdoor-service"
+    annotations = {
+      "service.beta.kubernetes.io/aws-load-balancer-name" = "frontdoor-service"
+      "service.beta.kubernetes.io/aws-load-balancer-type" = "nlb"
+      "service.beta.kubernetes.io/aws-load-balancer-internal" = "true"
+    }
+  }
+  spec {
+    selector = {
+      app = "frontdoor"
+    }
+    port {
+      port        = 80
+      target_port = 8080
+    }
+    type = "LoadBalancer"
+  }
   depends_on = [module.eks]
 }
 
-resource "aws_apigatewayv2_stage" "prod" {
-  api_id = aws_apigatewayv2_api.main.id
 
-  name        = "prod"
-  auto_deploy = true
-}
+resource "kubernetes_cluster_role" "all_resources" {
+  metadata {
+    name = "all-resources"
+  }
 
-resource "aws_security_group" "vpc_link" {
-  name   = "vpc-link"
-  vpc_id = module.vpc.vpc_id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  rule {
+    api_groups = ["*"]
+    resources  = ["*"]
+    verbs      = ["*"]
   }
 }
 
-resource "aws_apigatewayv2_vpc_link" "eks" {
-  name               = "eks"
-  security_group_ids = [aws_security_group.vpc_link.id]
-  subnet_ids = [
-    module.vpc.private_subnets[0],
-    module.vpc.private_subnets[1]
+resource "kubernetes_cluster_role_binding" "all_resources_binding" {
+  metadata {
+    name = "all-resources-binding"
+  }
 
-  ]
-}
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.all_resources.metadata[0].name
+  }
 
-resource "aws_lb" "eks_alb" {
-  name               = "eks-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.vpc_link.id]
-  subnets            = module.vpc.public_subnets
-
-  enable_deletion_protection = false
-}
-
-resource "aws_lb_listener" "eks_listener" {
-  load_balancer_arn = aws_lb.eks_alb.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "text/plain"
-      message_body = "Default response"
-      status_code  = "200"
-    }
+  subject {
+    kind      = "User"
+    name      = var.iam_user_arn
+    api_group = "rbac.authorization.k8s.io"
   }
 }
 
-resource "aws_apigatewayv2_integration" "eks" {
-  api_id             = aws_apigatewayv2_api.main.id
-  integration_type   = "HTTP_PROXY"
-  integration_method = "ANY"
-  integration_uri    = aws_lb_listener.eks_listener.arn
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.eks.id
-  depends_on         = [aws_apigatewayv2_api.main]
-}
 
-resource "aws_apigatewayv2_route" "eks" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "POST /api/payments/v1/submit-payment"
-  target    = "integrations/${aws_apigatewayv2_integration.eks.id}"
-  depends_on = [aws_apigatewayv2_api.main]
-}
+
+
+
+
