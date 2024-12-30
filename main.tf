@@ -164,6 +164,7 @@ resource "kubernetes_service" "frontdoor-service" {
     }
     port {
       port        = 80
+      protocol = "TCP"
       target_port = 8080
     }
     type = "LoadBalancer"
@@ -202,6 +203,41 @@ resource "kubernetes_cluster_role_binding" "all_resources_binding" {
   }
 }
 
+
+
+resource "aws_apigatewayv2_api" "main" {
+  name          = "main"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_stage" "prod" {
+  api_id = aws_apigatewayv2_api.main.id
+
+  name        = "prod"
+  auto_deploy = true
+}
+
+resource "aws_security_group" "vpc_link" {
+  name   = "vpc-link"
+  vpc_id = module.vpc.vpc_id
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_apigatewayv2_vpc_link" "eks" {
+  name               = "eks"
+  security_group_ids = [aws_security_group.vpc_link.id]
+  subnet_ids = [
+    module.vpc.private_subnets[0],
+    module.vpc.private_subnets[1],
+    module.vpc.private_subnets[2]
+  ]
+}
 
 
 
