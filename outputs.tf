@@ -17,3 +17,7 @@ output "cluster_name" {
   description = "Kubernetes Cluster Name"
   value       = module.eks.cluster_name
 }
+
+output "frontdoor_base_url" {
+  value = "${aws_apigatewayv2_stage.prod.invoke_url}/api/payments/v1/submit-payment"
+}
