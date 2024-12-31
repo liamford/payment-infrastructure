@@ -239,22 +239,22 @@ resource "aws_apigatewayv2_vpc_link" "eks" {
   ]
 }
 
-resource "aws_apigatewayv2_integration" "eks" {
-  api_id = aws_apigatewayv2_api.main.id
-
-  integration_uri    = "arn:aws:elasticloadbalancing:ap-southeast-2:765874878578:listener/net/a9e88a01ce50d4cf0bf531643682ca4c/22125a93e3fb4143/8ebba7c795fcfa89"
-  integration_type   = "HTTP_PROXY"
-  integration_method = "ANY"
-  connection_type    = "VPC_LINK"
-  connection_id      = aws_apigatewayv2_vpc_link.eks.id
-}
-
-resource "aws_apigatewayv2_route" "get_echo" {
-  api_id = aws_apigatewayv2_api.main.id
-
-  route_key = "POST /api/payments/v1/submit-payment"
-  target    = "integrations/${aws_apigatewayv2_integration.eks.id}"
-}
+# resource "aws_apigatewayv2_integration" "eks" {
+#   api_id = aws_apigatewayv2_api.main.id
+#
+#   integration_uri    = "arn:aws:elasticloadbalancing:ap-southeast-2:765874878578:listener/net/a9e88a01ce50d4cf0bf531643682ca4c/22125a93e3fb4143/8ebba7c795fcfa89"
+#   integration_type   = "HTTP_PROXY"
+#   integration_method = "ANY"
+#   connection_type    = "VPC_LINK"
+#   connection_id      = aws_apigatewayv2_vpc_link.eks.id
+# }
+#
+# resource "aws_apigatewayv2_route" "get_health" {
+#   api_id = aws_apigatewayv2_api.main.id
+#
+#   route_key = "GET /api/payments/v1/actuator/health"
+#   target    = "integrations/${aws_apigatewayv2_integration.eks.id}"
+# }
 
 
 
