@@ -12,7 +12,7 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  cluster_name = "payments-cluster"
+  cluster_name = "payment-cluster"
 }
 
 
