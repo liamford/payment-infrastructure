@@ -25,7 +25,7 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "private-ap-southeast-2a" {
-  subnet_id      = aws_subnet.private-ap-southeast-2a
+  subnet_id      = aws_subnet.private-ap-southeast-2a.id
   route_table_id = aws_route_table.private.id
 }
 
